@@ -218,4 +218,5 @@ SetGame(images).mainloop()
 #1. remove a SET, draw 3 new cards -- keep track of the cards drawn
 #2. keep scores for computer and player
 #3. When all cards have been played and no SET is present anymore --> display "Win or Lose".
-#4. add timer -- if nothing is drawn after ... seconds --> computer finds set --> if no set present 3 cards are removed 3 new added
+#4. add timer --> choose difficulty 
+#5. if nothing is drawn after (difficulty) seconds --> computer finds set --> if no set present 3 cards are removed 3 new added
