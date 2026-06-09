@@ -132,7 +132,7 @@ class SET:
 # -----------------------------
 # LOAD IMAGES
 # -----------------------------
-folder = Path(r"C:\Users\henri\OneDrive\Desktop\UU Lock In Period\Python Course\kaarten\kaarten")
+folder = Path(r"C:\Users\bwijc\Studie\Wiskunde\Programmeren voor Wiskunde\kaarten")
 images = {}
 for file in folder.glob("*.gif"):
     images[file.stem] = Image.open(file)
@@ -153,20 +153,24 @@ class SetGame(tk.Tk):
         self.selected = []        # currently selected card names (max 3)
         self.default_bg = None    # filled in when the first button is built
 
-        # deal a hand that is guaranteed to contain at least one set
-        self.hand = self.draw_hand()
-        self.vectors = SET.names_to_vectors(self.hand)   # name -> vector
-
-        self.build_grid()
-        self.status = tk.Label(self, text="Pick 3 cards", font=("Arial", 14))
-        self.status.grid(row=3, column=0, columnspan=4, pady=10)
-
-    def draw_hand(self):
-        names = list(self.images.keys())
+        # create a shuffled deck and deal 12 cards from the deck
+        # first hand should contain at least one SET
         while True:
-            hand = random.sample(names, self.n)
-            if SET.set_in_c_combination(hand):   # at least one set exists -> solvable
-                return hand
+            self.deck = list(self.images.keys())
+            random.shuffle(self.deck)
+            self.hand = [self.deck.pop() for _ in range(12)]
+            if SET.set_in_c_combination(self.hand):
+                break
+        # keeping track of the positions of the cards, so that when new cards will be drawn, the positions in the plot wont change    
+        self.card_positions = {}
+        for i in range(len(self.hand)):
+            name = self.hand[i]
+            self.card_positions[name] = i
+
+        self.vectors = SET.names_to_vectors(self.hand)   
+        self.build_grid()
+        self.status = tk.Label(self, text="Select 3 cards that make a SET", font=("Arial", 14))
+        self.status.grid(row=3, column=0, columnspan=4, pady=10)
 
     def build_grid(self):
         for i, name in enumerate(self.hand):
@@ -203,6 +207,7 @@ class SetGame(tk.Tk):
         c1, c2, c3 = (self.vectors[name] for name in self.selected)
         if SET.set_or_not(c1, c2, c3):
             self.status.config(text="This is a set. Good job!", fg="green")
+            self.after(2000, self.replace_set)  # after 2 seconds, the set is replaced --> need to add function to keep track of the scores
         else:
             self.status.config(text="This is not a set...", fg="red")
 
@@ -211,6 +216,30 @@ class SetGame(tk.Tk):
             self.style(name, False)
         self.selected = []
         self.status.config(text="Pick 3 cards", fg="black")
+
+    def replace_set(self):
+        for old_card in self.selected:
+            new_card = self.deck.pop()
+            self.hand[self.card_positions[old_card]] = new_card    # SET from the hand is changed to the last cards of the deck
+            if len(self.deck) == 0:                                # if deck is empty, the game continues with 3 less cards in the hand
+                self.buttons[old_card].destroy()
+                continue
+            self.card_positions[new_card] = self.card_positions[old_card]   # keep track of the position of the new cards
+            del self.card_positions[old_card]
+
+            photo = ImageTk.PhotoImage(self.images[new_card])
+            self.photos[new_card] = photo
+
+            # update existing button --> should look like it is not selected
+            btn = self.buttons[old_card]
+            btn.config(image=photo, relief=tk.RAISED, bg=self.default_bg, command=lambda n=new_card: self.on_click(n))
+            self.buttons[new_card] = btn
+            del self.buttons[old_card]
+
+        self.vectors = SET.names_to_vectors(self.hand)
+        self.selected = []
+        self.status.config(text="Pick 3 cards",fg="black")
+
 
 
 SetGame(images).mainloop()
