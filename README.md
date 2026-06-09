@@ -9,22 +9,16 @@ import matplotlib.pyplot as plt
 
 class SET:
     # -----------------------------
-    # CLASS DICTIONARIES
+    # CLASS DICTIONARIES, INITIALISING, FUNCTIONS TO CONVERT CLASS OBJECT TO VECTOR AND VICE VERSA
     # -----------------------------
     colors = {"green": 0, "purple": 1, "red": 2}
     numbers = {"1": 0, "2": 1, "3": 2}
     shadings = {"empty": 0, "filled": 1, "shaded": 2}
     symbols = {"diamond": 0, "oval": 1, "squiggle": 2}
 
-    # -----------------------------
-    # INIT
-    # -----------------------------
     def __init__(self, color, number, shading, symbol):
         self.vector = (color, number, shading, symbol)
 
-    # -----------------------------
-    # FROM STRINGS TO CARDS
-    # -----------------------------
     @classmethod
     def from_string(cls, card):
         # color
@@ -81,7 +75,7 @@ class SET:
         return mapping
     
     # -----------------------------
-    # SET ALGORITHMS
+    # SET ALGORITHMS: CHECKING IF 3 CARDS FORM A SET, FINDING ALL SETS IN A HAND 
     # -----------------------------
     
     @staticmethod
@@ -99,7 +93,7 @@ class SET:
     def set_in_c_combination(hand_names):
         cards = [SET.from_string(name) for name in hand_names]
         vectors = [card.vector for card in cards]
-        vector_to_name = {card.vector: name for card, name in zip(cards, hand_names)}
+        vector_to_name = SET.vectors_to_names(hand_names)
         all_combinations = SET.generate_all_combinations(vectors)
         all_sets = []
         for combination in all_combinations:                       
@@ -110,9 +104,9 @@ class SET:
         return all_sets if all_sets else None
     
     # -----------------------------
-    # DISPLAY RANDOM CARDS
+    # DISPLAY RANDOM CARDS --> not used anymore, just stored 
     # -----------------------------
-    def display_random_cards(images, n=12):
+    #def display_random_cards(images, n=12):
         chosen = random.sample(list(images.keys()), n)
         rows = 3
         cols = 4
@@ -217,13 +211,21 @@ class SetGame(tk.Tk):
         self.selected = []
         self.status.config(text="Pick 3 cards", fg="black")
 
+    def end_of_game(self):
+        self.status.config(text="Game over! No more sets available.", fg="blue")
+        for btn in self.buttons.values():
+            btn.config(state=tk.DISABLED)    
+
     def replace_set(self):
         for old_card in self.selected:
-            new_card = self.deck.pop()
-            self.hand[self.card_positions[old_card]] = new_card    # SET from the hand is changed to the last cards of the deck
             if len(self.deck) == 0:                                # if deck is empty, the game continues with 3 less cards in the hand
                 self.buttons[old_card].destroy()
+                del self.buttons[old_card]
+                del self.card_positions[old_card]
                 continue
+            new_card = self.deck.pop()
+            self.hand[self.card_positions[old_card]] = new_card    # selected SET from is changed to the last cards of the deck
+            
             self.card_positions[new_card] = self.card_positions[old_card]   # keep track of the position of the new cards
             del self.card_positions[old_card]
 
@@ -236,15 +238,17 @@ class SetGame(tk.Tk):
             self.buttons[new_card] = btn
             del self.buttons[old_card]
 
-        self.vectors = SET.names_to_vectors(self.hand)
+        active_cards = list(self.buttons.keys())
+        self.vectors = SET.names_to_vectors(active_cards)
         self.selected = []
-        self.status.config(text="Pick 3 cards",fg="black")
 
-
+        if len(self.deck) == 0 and not SET.set_in_c_combination(self.hand):
+            self.end_of_game()
+        else:
+            self.status.config(text="Pick 3 cards", fg="black")    
 
 SetGame(images).mainloop()
 
-#1. remove a SET, draw 3 new cards -- keep track of the cards drawn
 #2. keep scores for computer and player
 #3. When all cards have been played and no SET is present anymore --> display "Win or Lose".
 #4. add timer --> choose difficulty 
