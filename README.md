@@ -1,4 +1,3 @@
-# SETs-Project
 from pathlib import Path
 from PIL import Image, ImageTk
 import random
@@ -126,7 +125,7 @@ class SET:
 # -----------------------------
 # LOAD IMAGES
 # -----------------------------
-folder = Path(r"C:\Users\bwijc\Studie\Wiskunde\Programmeren voor Wiskunde\kaarten")
+folder = Path(r"C:\Users\henri\OneDrive\Desktop\UU Lock In Period\Python Course\kaarten\kaarten")
 images = {}
 for file in folder.glob("*.gif"):
     images[file.stem] = Image.open(file)
@@ -146,6 +145,8 @@ class SetGame(tk.Tk):
         self.buttons = {}         # name -> Button
         self.selected = []        # currently selected card names (max 3)
         self.default_bg = None    # filled in when the first button is built
+        self.player_score = 0     # sets found by the player
+        self.computer_score = 0   # sets found by the computer
 
         # create a shuffled deck and deal 12 cards from the deck
         # first hand should contain at least one SET
@@ -161,10 +162,32 @@ class SetGame(tk.Tk):
             name = self.hand[i]
             self.card_positions[name] = i
 
-        self.vectors = SET.names_to_vectors(self.hand)   
+        self.vectors = SET.names_to_vectors(self.hand)
+
+        # header on top: score and timer (kept here so they stay visible)
+        self.header = tk.Frame(self)
+        self.header.grid(row=0, column=0, columnspan=4, pady=8)
+        self.score_label = tk.Label(self.header, text="Player: 0    Computer: 0", font=("Arial", 14))
+        self.score_label.grid(row=0, column=0, padx=20)
+        self.timer_label = tk.Label(self.header, text="Time: --", font=("Arial", 14))
+        self.timer_label.grid(row=0, column=1, padx=20)
+
         self.build_grid()
+
         self.status = tk.Label(self, text="Select 3 cards that make a SET", font=("Arial", 14))
-        self.status.grid(row=3, column=0, columnspan=4, pady=10)
+        self.status.grid(row=4, column=0, columnspan=4, pady=10)
+
+        self.time_limit = None    # seconds per round, set when difficulty is chosen
+        self.remaining = 0        # seconds left in the current round
+        self.timer_job = None     # id of the scheduled countdown callback
+        self.round_marker = 0     # player_score at the start of the current round
+        self.game_over = False    # set to True when the game ends
+
+        self.difficulties = {"Easy": 60, "Medium": 30, "Hard": 15}
+        seconds = self.choose_difficulty()
+        if seconds is None:                    # panel closed without choosing
+            seconds = self.difficulties["Medium"]
+        self.start_timer(seconds)
 
     def build_grid(self):
         for i, name in enumerate(self.hand):
@@ -172,7 +195,7 @@ class SetGame(tk.Tk):
             self.photos[name] = photo
             btn = tk.Button(self, image=photo, relief=tk.RAISED, bd=3,
                             command=lambda n=name: self.on_click(n))
-            btn.grid(row=i // 4, column=i % 4, padx=4, pady=4)
+            btn.grid(row=i // 4 + 1, column=i % 4, padx=4, pady=4)
             self.buttons[name] = btn
             if self.default_bg is None:
                 self.default_bg = btn.cget("background")
@@ -182,6 +205,71 @@ class SetGame(tk.Tk):
             self.buttons[name].config(relief=tk.SUNKEN, bg="gold")
         else:
             self.buttons[name].config(relief=tk.RAISED, bg=self.default_bg)
+
+    def update_score(self):
+        self.score_label.config(text=f"Player: {self.player_score}    Computer: {self.computer_score}")
+
+    def choose_difficulty(self):
+        panel = tk.Toplevel(self)
+        panel.title("Select difficulty")
+        panel.grab_set()                       # block the board until a choice is made
+        tk.Label(panel, text="Choose a difficulty", font=("Arial", 14)).pack(padx=20, pady=10)
+        row = tk.Frame(panel)
+        row.pack(padx=20, pady=(0, 15))
+        chosen = {"seconds": None}
+        def pick(seconds):
+            chosen["seconds"] = seconds
+            panel.destroy()
+        for i, (label, seconds) in enumerate(self.difficulties.items()):
+            tk.Button(row, text=label, width=8,
+                      command=lambda s=seconds: pick(s)).grid(row=0, column=i, padx=5)
+        self.wait_window(panel)                # wait here until a button is clicked
+        return chosen["seconds"]
+
+    def start_timer(self, seconds):
+        if self.timer_job is not None:
+            self.after_cancel(self.timer_job)
+        self.time_limit = seconds
+        self.remaining = seconds
+        self.round_marker = self.player_score
+        self.timer_label.config(text=f"Time: {self.remaining}")
+        self.timer_job = self.after(1000, self.update_timer)
+
+    def update_timer(self):
+        if self.player_score != self.round_marker:   # player found a set -> fresh round, reset clock
+            self.round_marker = self.player_score
+            self.remaining = self.time_limit
+            self.timer_label.config(text=f"Time: {self.remaining}")
+            self.timer_job = self.after(1000, self.update_timer)
+            return
+        self.remaining -= 1
+        self.timer_label.config(text=f"Time: {self.remaining}")
+        if self.remaining <= 0:
+            self.time_up()
+        else:
+            self.timer_job = self.after(1000, self.update_timer)
+
+    def time_up(self):
+        if self.game_over:
+            return
+        self.timer_job = None
+        active = list(self.buttons.keys())
+        sets = SET.set_in_c_combination(active)
+        if sets:
+            self.computer_score += 1
+            self.update_score()
+            self.selected = list(sets[0])      # the set the computer "found"
+            found = True
+        else:
+            self.selected = active[:3]         # no set on the board -> refresh 3 cards
+            found = False
+        self.replace_set()
+        if not self.game_over:
+            if found:
+                self.status.config(text="Time's up! The computer found a set.", fg="red")
+            else:
+                self.status.config(text="Time's up! No set was there, cards refreshed.", fg="red")
+            self.start_timer(self.time_limit)
 
     def on_click(self, name):
         # a verdict is already on screen (3 picked) -> this click starts a new try
@@ -200,6 +288,8 @@ class SetGame(tk.Tk):
     def check_set(self):
         c1, c2, c3 = (self.vectors[name] for name in self.selected)
         if SET.set_or_not(c1, c2, c3):
+            self.player_score += 1
+            self.update_score()
             self.status.config(text="This is a set. Good job!", fg="green")
             self.after(2000, self.replace_set)  # after 2 seconds, the set is replaced --> need to add function to keep track of the scores
         else:
@@ -212,9 +302,16 @@ class SetGame(tk.Tk):
         self.status.config(text="Pick 3 cards", fg="black")
 
     def end_of_game(self):
-        self.status.config(text="Game over! No more sets available.", fg="blue")
+        self.game_over = True
+        if self.timer_job is not None:
+            self.after_cancel(self.timer_job)
+            self.timer_job = None
         for btn in self.buttons.values():
-            btn.config(state=tk.DISABLED)    
+            btn.config(state=tk.DISABLED)
+        if self.player_score > self.computer_score:
+            self.status.config(text="You Win!", fg="green")
+        else:
+            self.status.config(text="Loser!", fg="red")
 
     def replace_set(self):
         for old_card in self.selected:
@@ -248,8 +345,3 @@ class SetGame(tk.Tk):
             self.status.config(text="Pick 3 cards", fg="black")    
 
 SetGame(images).mainloop()
-
-#2. keep scores for computer and player
-#3. When all cards have been played and no SET is present anymore --> display "Win or Lose".
-#4. add timer --> choose difficulty 
-#5. if nothing is drawn after (difficulty) seconds --> computer finds set --> if no set present 3 cards are removed 3 new added
