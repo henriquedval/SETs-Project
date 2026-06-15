@@ -125,7 +125,7 @@ class SET:
 # -----------------------------
 # LOAD IMAGES
 # -----------------------------
-folder = Path(r"C:\Users\henri\OneDrive\Desktop\UU Lock In Period\Python Course\kaarten\kaarten")
+folder = Path(r"C:\Users\bwijc\Studie\Wiskunde\Programmeren voor Wiskunde\kaarten")
 images = {}
 for file in folder.glob("*.gif"):
     images[file.stem] = Image.open(file)
@@ -147,6 +147,8 @@ class SetGame(tk.Tk):
         self.default_bg = None    # filled in when the first button is built
         self.player_score = 0     # sets found by the player
         self.computer_score = 0   # sets found by the computer
+        self.waiting_for_replace = False   # making sure that the selected cards cannot be changed during the time they are replaced
+        self.cards_to_replace = []
 
         # create a shuffled deck and deal 12 cards from the deck
         # first hand should contain at least one SET
@@ -258,20 +260,19 @@ class SetGame(tk.Tk):
         if sets:
             self.computer_score += 1
             self.update_score()
-            self.selected = list(sets[0])      # the set the computer "found"
-            found = True
+            self.waiting_for_replace = True
+            self.cards_to_replace = list(sets[0])   # the set the computer "found"
+            for card in self.cards_to_replace:
+                self.buttons[card].config(bg="red", relief=tk.SUNKEN)
+            self.status.config(text="Time's up! The computer found a set.", fg="red")
         else:
-            self.selected = active[:3]         # no set on the board -> refresh 3 cards
-            found = False
-        self.replace_set()
-        if not self.game_over:
-            if found:
-                self.status.config(text="Time's up! The computer found a set.", fg="red")
-            else:
-                self.status.config(text="Time's up! No set was there, cards refreshed.", fg="red")
-            self.start_timer(self.time_limit)
+            self.status.config(text="Time's up! No set was there, cards refreshed.", fg="red")
+            self.cards_to_replace = active[:3]         # no set on the board -> refresh 3 cards
+        self.after(2000, self.replace_set)     # waits 2 seconds to display the found SET, then replaces cards.     
 
     def on_click(self, name):
+        if self.waiting_for_replace:    # if cards are being swapped, no new ones can be selected
+            return
         # a verdict is already on screen (3 picked) -> this click starts a new try
         if len(self.selected) == 3:
             self.clear_selection()
@@ -291,6 +292,8 @@ class SetGame(tk.Tk):
             self.player_score += 1
             self.update_score()
             self.status.config(text="This is a set. Good job!", fg="green")
+            self.waiting_for_replace = True
+            self.cards_to_replace = self.selected.copy()
             self.after(2000, self.replace_set)  # after 2 seconds, the set is replaced --> need to add function to keep track of the scores
         else:
             self.status.config(text="This is not a set...", fg="red")
@@ -309,19 +312,21 @@ class SetGame(tk.Tk):
         for btn in self.buttons.values():
             btn.config(state=tk.DISABLED)
         if self.player_score > self.computer_score:
-            self.status.config(text="You Win!", fg="green")
+            self.status.config(text="No more SETs available. You Win!", fg="green")
+        elif self.player_score == self.computer_score:
+            self.status.config(text="No more SETs available. Draw!", fg="yellow")
         else:
-            self.status.config(text="Loser!", fg="red")
+            self.status.config(text="No more SETs available. Computer wins!", fg="red")
 
     def replace_set(self):
-        for old_card in self.selected:
-            if len(self.deck) == 0:                                # if deck is empty, the game continues with 3 less cards in the hand
+        for old_card in self.cards_to_replace:
+            if len(self.deck) == 0:                 # if deck is empty, the game continues with 3 less cards in the hand
                 self.buttons[old_card].destroy()
                 del self.buttons[old_card]
                 del self.card_positions[old_card]
                 continue
             new_card = self.deck.pop()
-            self.hand[self.card_positions[old_card]] = new_card    # selected SET from is changed to the last cards of the deck
+            self.hand[self.card_positions[old_card]] = new_card    # selected SET from hand is changed to the top cards of the deck
             
             self.card_positions[new_card] = self.card_positions[old_card]   # keep track of the position of the new cards
             del self.card_positions[old_card]
@@ -338,10 +343,14 @@ class SetGame(tk.Tk):
         active_cards = list(self.buttons.keys())
         self.vectors = SET.names_to_vectors(active_cards)
         self.selected = []
+        self.cards_to_replace = []
+        self.waiting_for_replace = False
 
-        if len(self.deck) == 0 and not SET.set_in_c_combination(self.hand):
+        if len(self.deck) == 0 and not SET.set_in_c_combination(active_cards):
             self.end_of_game()
         else:
             self.status.config(text="Pick 3 cards", fg="black")    
+            if not self.game_over:
+                self.start_timer(self.time_limit)
 
 SetGame(images).mainloop()
