@@ -71,17 +71,6 @@ class SET:
             if not ((c1[i] != c2[i] and c1[i] != c3[i] and c2[i] !=c3[i]) or (c1[i] == c2[i] == c3[i])) : 
                 return False 
         else: return True
-
-    @staticmethod
-    def set_in_c_combination(hand_names):
-        all_sets = []
-        for combination in combinations(hand_names, 3):
-            c1 = SET.from_string(combination[0]).vector
-            c2 = SET.from_string(combination[1]).vector
-            c3 = SET.from_string(combination[2]).vector
-            if SET.set_or_not(c1, c2, c3):
-                all_sets.append(combination)
-        return all_sets if all_sets else None
     
     @staticmethod
     def complete_set(c1,c2):    # this function can find the card that would complete a SET
