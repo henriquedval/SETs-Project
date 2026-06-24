@@ -1,14 +1,22 @@
 from pathlib import Path
 from PIL import Image, ImageTk
 import random
-import math
 import tkinter as tk
 import matplotlib.pyplot as plt
+from itertools import combinations
 
+# -----------------------------
+# LOAD IMAGES --> make sure to change the folder directory!
+# -----------------------------
+folder = Path(r"C:\Users\bwijc\Studie\Wiskunde\Programmeren voor Wiskunde\kaarten")
+images = {}
+for file in folder.glob("*.gif"):
+    images[file.stem] = Image.open(file)
+print("Loaded", len(images), "images")
 
 class SET:
     # -----------------------------
-    # CLASS DICTIONARIES, INITIALISING, FUNCTIONS TO CONVERT CLASS OBJECT TO VECTOR AND VICE VERSA
+    # CLASS DICTIONARIES (so we know which variable is coupled to which integer), INITIALISING
     # -----------------------------
     colors = {"green": 0, "purple": 1, "red": 2}
     numbers = {"1": 0, "2": 1, "3": 2}
@@ -55,81 +63,35 @@ class SET:
         return cls(color, number, shading, symbol)
     
     # -----------------------------
-    # COUPLING NAMES TO CORRESPONDING VECTORS AND VICE VERSA
-    # -----------------------------
-    @staticmethod
-    def names_to_vectors(hand_names):
-        mapping = {}
-        for name in hand_names:
-            card = SET.from_string(name)
-            mapping[name] = card.vector
-        return mapping
-
-    @staticmethod
-    def vectors_to_names(hand_names):
-        mapping = {}
-        for name in hand_names:
-            card = SET.from_string(name)
-            mapping[card.vector] = name
-        return mapping
-    
-    # -----------------------------
     # SET ALGORITHMS: CHECKING IF 3 CARDS FORM A SET, FINDING ALL SETS IN A HAND 
     # -----------------------------
-    
     @staticmethod
     def set_or_not(c1, c2, c3):             
         for i in range(len(c1)): 
-            if not ((c1[i] != c2[i] and c1[i] != c3[i] and c2[i] !=c3[i]) or (c1[i] == c2[i] == c3[i])) : return False 
+            if not ((c1[i] != c2[i] and c1[i] != c3[i] and c2[i] !=c3[i]) or (c1[i] == c2[i] == c3[i])) : 
+                return False 
         else: return True
 
     @staticmethod
-    def generate_all_combinations(vectors):
-        import itertools
-        return list(itertools.combinations(vectors, 3))
-
-    @staticmethod
     def set_in_c_combination(hand_names):
-        cards = [SET.from_string(name) for name in hand_names]
-        vectors = [card.vector for card in cards]
-        vector_to_name = SET.vectors_to_names(hand_names)
-        all_combinations = SET.generate_all_combinations(vectors)
         all_sets = []
-        for combination in all_combinations:                       
-            if SET.set_or_not(*combination):
-                current_set = tuple(vector_to_name[v] for v in combination)
-                all_sets.append(tuple(current_set))
-
+        for combination in combinations(hand_names, 3):
+            c1 = SET.from_string(combination[0]).vector
+            c2 = SET.from_string(combination[1]).vector
+            c3 = SET.from_string(combination[2]).vector
+            if SET.set_or_not(c1, c2, c3):
+                all_sets.append(combination)
         return all_sets if all_sets else None
     
-    # -----------------------------
-    # DISPLAY RANDOM CARDS --> not used anymore, just stored 
-    # -----------------------------
-    #def display_random_cards(images, n=12):
-        chosen = random.sample(list(images.keys()), n)
-        rows = 3
-        cols = 4
-        fig, axes = plt.subplots(rows, cols, figsize=(cols * 2, rows * 3))
-        axes = axes.flatten()
-        for i in range(n):
-            name = chosen[i]
-            axes[i].imshow(images[name])
-            axes[i].set_title(name, fontsize=8)
-            axes[i].axis("off")
-        for j in range(n, len(axes)):
-            axes[j].axis("off")
-        plt.tight_layout()
-        plt.show()
-        return chosen
-
-# -----------------------------
-# LOAD IMAGES
-# -----------------------------
-folder = Path(r"C:\Users\bwijc\Studie\Wiskunde\Programmeren voor Wiskunde\kaarten")
-images = {}
-for file in folder.glob("*.gif"):
-    images[file.stem] = Image.open(file)
-print("Loaded", len(images), "images")
+    @staticmethod
+    def complete_set(c1,c2):    # this function can find the card that would complete a SET
+        result = []
+        for i in range(len(c1)):
+            if c1[i] == c2[i]:
+                result.append(c1[i])
+            if c1[i] != c2[i]:
+                result.append(({0,1,2}-{c1[i],c2[i]}).pop())
+        return tuple(result)
 
 
 # -----------------------------
@@ -140,10 +102,11 @@ class SetGame(tk.Tk):
         super().__init__()
         self.title("SET")
         self.images = images
+        self.card_vectors = {name: SET.from_string(name).vector for name in self.images}
         self.n = n
         self.photos = {}          # keep PhotoImage refs alive (avoids blank cards)
         self.buttons = {}         # name -> Button
-        self.selected = []        # currently selected card names (max 3)
+        self.selected = set()     # currently selected card names (max 3)
         self.default_bg = None    # filled in when the first button is built
         self.player_score = 0     # sets found by the player
         self.computer_score = 0   # sets found by the computer
@@ -156,15 +119,13 @@ class SetGame(tk.Tk):
             self.deck = list(self.images.keys())
             random.shuffle(self.deck)
             self.hand = [self.deck.pop() for _ in range(12)]
-            if SET.set_in_c_combination(self.hand):
+            if self.find_all_sets(self.hand):
                 break
         # keeping track of the positions of the cards, so that when new cards will be drawn, the positions in the plot wont change    
         self.card_positions = {}
         for i in range(len(self.hand)):
             name = self.hand[i]
             self.card_positions[name] = i
-
-        self.vectors = SET.names_to_vectors(self.hand)
 
         # header on top: score and timer (kept here so they stay visible)
         self.header = tk.Frame(self)
@@ -255,8 +216,11 @@ class SetGame(tk.Tk):
         if self.game_over:
             return
         self.timer_job = None
+        for card in list(self.selected):
+            self.style(card, False)
+        self.selected.clear()
         active = list(self.buttons.keys())
-        sets = SET.set_in_c_combination(active)
+        sets = self.find_all_sets(active)
         if sets:
             self.computer_score += 1
             self.update_score()
@@ -281,27 +245,46 @@ class SetGame(tk.Tk):
             self.selected.remove(name)
             self.style(name, False)
         else:
-            self.selected.append(name)
+            self.selected.add(name)
             self.style(name, True)
             if len(self.selected) == 3:
                 self.check_set()
 
     def check_set(self):
-        c1, c2, c3 = (self.vectors[name] for name in self.selected)
+        c1, c2, c3 = (self.card_vectors[name] for name in self.selected)
         if SET.set_or_not(c1, c2, c3):
             self.player_score += 1
             self.update_score()
             self.status.config(text="This is a set. Good job!", fg="green")
             self.waiting_for_replace = True
             self.cards_to_replace = self.selected.copy()
-            self.after(2000, self.replace_set)  # after 2 seconds, the set is replaced --> need to add function to keep track of the scores
+            self.after(2000, self.replace_set) 
         else:
             self.status.config(text="This is not a set...", fg="red")
-
+    
+    def find_all_sets(self, hand_names):    
+        vectors = [self.card_vectors[name] for name in hand_names]
+        vector_to_name = {self.card_vectors[name]: name for name in hand_names}
+        all_sets = []
+        for combination in combinations(vectors,2):
+            needed = SET.complete_set(*combination)
+            if needed in vector_to_name:
+                current_set = frozenset({vector_to_name[combination[0]],vector_to_name[combination[1]],vector_to_name[needed]})     #because it finds the same set 3 times, this guarantees only one is added to all_sets
+                all_sets.append(current_set)
+        return all_sets if all_sets else None
+    
+    #def find_one_set(self, hand_names):        # this is essentialy the same as the function find_all_sets and is therefore not needed
+    #    vectors = [self.card_vectors[name] for name in hand_names]
+    #    vector_to_name = {self.card_vectors[name]: name for name in hand_names}
+    #    for combination in combinations(vectors, 2):
+    #        if (needed := SET.complete_set(*combination)) in vector_to_name:
+    #            current_set = (vector_to_name[combination[0]],vector_to_name[combination[1]],vector_to_name[needed])
+    #    return current_set
+    
     def clear_selection(self):
         for name in self.selected:
             self.style(name, False)
-        self.selected = []
+        self.selected.clear()
         self.status.config(text="Pick 3 cards", fg="black")
 
     def end_of_game(self):
@@ -341,12 +324,11 @@ class SetGame(tk.Tk):
             del self.buttons[old_card]
 
         active_cards = list(self.buttons.keys())
-        self.vectors = SET.names_to_vectors(active_cards)
-        self.selected = []
+        self.selected = set()
         self.cards_to_replace = []
         self.waiting_for_replace = False
 
-        if len(self.deck) == 0 and not SET.set_in_c_combination(active_cards):
+        if len(self.deck) == 0 and not self.find_all_sets(active_cards):
             self.end_of_game()
         else:
             self.status.config(text="Pick 3 cards", fg="black")    
