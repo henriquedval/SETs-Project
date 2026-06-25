@@ -5,15 +5,6 @@ import tkinter as tk
 import matplotlib.pyplot as plt
 from itertools import combinations
 
-# -----------------------------
-# LOAD IMAGES --> make sure to change the folder directory!
-# -----------------------------
-folder = Path(r"C:\Users\bwijc\Studie\Wiskunde\Programmeren voor Wiskunde\kaarten")
-images = {}
-for file in folder.glob("*.gif"):
-    images[file.stem] = Image.open(file)
-print("Loaded", len(images), "images")
-
 class SET:
     # -----------------------------
     # CLASS DICTIONARIES (so we know which variable is coupled to which integer), INITIALISING
@@ -82,6 +73,14 @@ class SET:
                 result.append(({0,1,2}-{c1[i],c2[i]}).pop())
         return tuple(result)
 
+# -----------------------------
+# LOAD IMAGES --> make sure to change the folder directory!
+# -----------------------------
+folder = Path(r"C:\Users\bwijc\Studie\Wiskunde\Programmeren voor Wiskunde\kaarten")
+images = {}
+for file in folder.glob("*.gif"):
+    images[file.stem] = Image.open(file)
+print("Loaded", len(images), "images")
 
 # -----------------------------
 # INTERACTIVE GAME (TKINTER)
