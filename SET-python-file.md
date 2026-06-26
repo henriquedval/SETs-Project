@@ -16,13 +16,8 @@ print("Loaded", len(images), "images")
 
 class SET:
     # -----------------------------
-    # CLASS DICTIONARIES (so we know which variable is coupled to which integer), INITIALISING
+    # INITIALISING, cards are represented as 4d vectors
     # -----------------------------
-    colors = {"green": 0, "purple": 1, "red": 2}
-    numbers = {"1": 0, "2": 1, "3": 2}
-    shadings = {"empty": 0, "filled": 1, "shaded": 2}
-    symbols = {"diamond": 0, "oval": 1, "squiggle": 2}
-
     def __init__(self, color, number, shading, symbol):
         self.vector = (color, number, shading, symbol)
 
@@ -68,29 +63,29 @@ class SET:
     @staticmethod
     def set_or_not(c1, c2, c3):             
         for i in range(len(c1)): 
-            if not ((c1[i] != c2[i] and c1[i] != c3[i] and c2[i] !=c3[i]) or (c1[i] == c2[i] == c3[i])) : 
-                return False 
+            if not ((c1[i] != c2[i] and c1[i] != c3[i] and c2[i] !=c3[i]) or (c1[i] == c2[i] == c3[i])) : # For every property (color, number, shading, symbol), 
+                return False                                                                              # the values must be either all equal or all different.
         else: return True
     
     @staticmethod
     def complete_set(c1,c2):    # this function can find the card that would complete a SET
         result = []
-        for i in range(len(c1)):
-            if c1[i] == c2[i]:
+        for i in range(len(c1)):        
+            if c1[i] == c2[i]:        # if a value is the same for 2 cards, it must also be the same for the third
                 result.append(c1[i])
-            if c1[i] != c2[i]:
+            if c1[i] != c2[i]:        # if a value is the different for 2 cards, the third must be have the remaining value in {0,1,2}.
                 result.append(({0,1,2}-{c1[i],c2[i]}).pop())
         return tuple(result)
 
 # -----------------------------
-# INTERACTIVE GAME (TKINTER)
+# INTERACTIVE GAME (TKINTER), handles the GUI, timer, scoring system and gameplay logic
 # -----------------------------
 class SetGame(tk.Tk):
     def __init__(self, images, n=12):
         super().__init__()
         self.title("SET")
         self.images = images
-        self.card_vectors = {name: SET.from_string(name).vector for name in self.images}
+        self.card_vectors = {name: SET.from_string(name).vector for name in self.images}     #compute the vector representation of every card once, to avoid                                                                                                   #repeatedly calling SET.from_string()
         self.n = n
         self.photos = {}          # keep PhotoImage refs alive (avoids blank cards)
         self.buttons = {}         # name -> Button
@@ -140,6 +135,8 @@ class SetGame(tk.Tk):
             seconds = self.difficulties["Medium"]
         self.start_timer(seconds)
 
+    # Create a 3x4 grid of card buttons
+    # Each button stores its card name
     def build_grid(self):
         for i, name in enumerate(self.hand):
             photo = ImageTk.PhotoImage(self.images[name])
@@ -151,7 +148,7 @@ class SetGame(tk.Tk):
             if self.default_bg is None:
                 self.default_bg = btn.cget("background")
 
-    def style(self, name, selected):
+    def style(self, name, selected):    # indicates the selected cards
         if selected:
             self.buttons[name].config(relief=tk.SUNKEN, bg="gold")
         else:
@@ -209,7 +206,7 @@ class SetGame(tk.Tk):
         self.selected.clear()
         active = list(self.buttons.keys())
         sets = self.find_all_sets(active)
-        if sets:
+        if sets:                            # Time limit reached, ff a SET exists, the computer scores a point and highlights one SET.
             self.computer_score += 1
             self.update_score()
             self.waiting_for_replace = True
@@ -239,8 +236,8 @@ class SetGame(tk.Tk):
                 self.check_set()
 
     def check_set(self):
-        c1, c2, c3 = (self.card_vectors[name] for name in self.selected)
-        if SET.set_or_not(c1, c2, c3):
+        c1, c2, c3 = (self.card_vectors[name] for name in self.selected) # names of selected cards are converted to their vector representation 
+        if SET.set_or_not(c1, c2, c3):                                   # and checked by set_or_not.
             self.player_score += 1
             self.update_score()
             self.status.config(text="This is a set. Good job!", fg="green")
@@ -254,7 +251,7 @@ class SetGame(tk.Tk):
         vectors = [self.card_vectors[name] for name in hand_names]
         vector_to_name = {self.card_vectors[name]: name for name in hand_names}
         all_sets = []
-        for combination in combinations(vectors,2):
+        for combination in combinations(vectors,2):        # for every pair, the unique card that would make a SET is determined and checked if it is present.
             needed = SET.complete_set(*combination)
             if needed in vector_to_name:
                 current_set = frozenset({vector_to_name[combination[0]],vector_to_name[combination[1]],vector_to_name[needed]})   
@@ -291,7 +288,7 @@ class SetGame(tk.Tk):
 
     def replace_set(self):
         for old_card in self.cards_to_replace:
-            if len(self.deck) == 0:                 # if deck is empty, the game continues with 3 less cards in the hand
+            if len(self.deck) == 0:                 # if deck is empty, the game continues with 3 less cards on the table
                 self.buttons[old_card].destroy()
                 del self.buttons[old_card]
                 del self.card_positions[old_card]
@@ -305,14 +302,15 @@ class SetGame(tk.Tk):
             photo = ImageTk.PhotoImage(self.images[new_card])
             self.photos[new_card] = photo
 
-            # update existing button --> should look like it is not selected
+            # existing buttons are reused, their images and callbacks are updated, which keeps the layout fixed.
+            # updated existing buttons should not be selected
             btn = self.buttons[old_card]
             btn.config(image=photo, relief=tk.RAISED, bg=self.default_bg, command=lambda n=new_card: self.on_click(n))
             self.buttons[new_card] = btn
             del self.buttons[old_card]
 
         active_cards = list(self.buttons.keys())
-        self.selected = set()
+        self.selected = set()            # the selection of cards is emptied
         self.cards_to_replace = []
         self.waiting_for_replace = False
 
