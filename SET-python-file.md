@@ -257,7 +257,7 @@ class SetGame(tk.Tk):
         for combination in combinations(vectors,2):
             needed = SET.complete_set(*combination)
             if needed in vector_to_name:
-                current_set = frozenset({vector_to_name[combination[0]],vector_to_name[combination[1]],vector_to_name[needed]})     #because it finds the same set 3 times, this guarantees only one is added to all_sets
+                current_set = frozenset({vector_to_name[combination[0]],vector_to_name[combination[1]],vector_to_name[needed]})   
                 all_sets.append(current_set)
         return all_sets if all_sets else None
     
